@@ -166,6 +166,36 @@ app.delete("/collections/:collectionName/:id", async (req, res, next) => {
   }
 });
 
+// Update the course quantity and add to cart
+app.put('/collections/courses/:id/add-to-cart', async (req, res) => {
+  try {
+      const courseId = req.params.id;
+      const coursesCollection = db1.collection('courses');
+
+      // Find and update the course to decrement its Space
+      const result = await coursesCollection.updateOne(
+          { _id: new ObjectId(courseId), Space: { $gt: 0 } }, // Ensure Space > 0
+          { $inc: { Space: -1 } } // Decrement Space by 1
+      );
+
+      if (result.matchedCount === 0) {
+          return res.status(400).json({ error: 'Course not found or no spaces left' });
+      }
+
+      // Add to cart logic (optional, if storing cart in the database)
+      const cartCollection = db1.collection('cart'); // Assuming you have a cart collection
+      const cartResult = await cartCollection.updateOne(
+          { courseId: new ObjectId(courseId) },
+          { $inc: { quantity: 1 } }, // Increment cart quantity
+          { upsert: true } // Insert if it doesn't exist
+      );
+
+      res.json({ message: 'Course added to cart successfully', cartResult });
+  } catch (error) {
+      console.error('Error updating course:', error);
+      res.status(500).json({ error: 'An error occurred while adding the course to the cart' });
+  }
+});
 
 app.use((err, req, res, next) => {
     console.error('Global error handler:', err);
