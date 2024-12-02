@@ -233,6 +233,27 @@ app.put('/collections/courses/:id/remove-from-cart', async (req, res) => {
   }
 });
 
+// Get sorted courses based on query parameters
+app.get('/collections/courses/sort', async (req, res) => {
+  try {
+      const { sortAttribute = "name", sortOrder = "asc" } = req.query;
+
+      // Build the sort criteria
+      const sortCriteria = {
+          [sortAttribute]: sortOrder === "asc" ? 1 : -1, // Ascending (1) or Descending (-1)
+      };
+
+      const coursesCollection = db1.collection('courses');
+      const sortedCourses = await coursesCollection.find({}).sort(sortCriteria).toArray();
+
+      res.json(sortedCourses);
+  } catch (error) {
+      console.error('Error sorting courses:', error.message);
+      res.status(500).json({ error: 'An error occurred while sorting courses' });
+  }
+});
+
+
 app.use((err, req, res, next) => {
     console.error('Global error handler:', err);
     res.status(500).json({ error: 'An error occurred' });
