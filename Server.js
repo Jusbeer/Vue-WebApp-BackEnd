@@ -51,21 +51,45 @@ app.param('collectionName', async function(req, res, next, collectionName) {
     next();
 });
 
+// Serve the "Images" folder
+app.use("/images", express.static(path.join(__dirname, "Images")));
+
+app.get("/test-images", (req, res) => {
+  res.json({ message: "Static file serving configured" });
+});
+
+// Function to update lesson images
+async function updateLessonImages() {
+  try {
+    const lessonsCollection = db.collection("courses");
+    const lessons = await lessonsCollection.find({}).toArray();
+    for (let lesson of lessons) {
+      const updatedImage = `http://localhost:3000/courses/Images/${lesson.name}.jpeg`;
+      await lessonsCollection.updateOne(
+        { _id: lesson._id },
+        { $set: { image: updatedImage } }
+      );
+    }
+    console.log("Lesson images updated successfully!");
+  } catch (error) {
+    console.error("Error updating images:", error);
+  }
+}
 
 
 // Ensure this route is defined after the middleware app.param
 // get all data from our collection in Mongodb
 // whatever had ":" before the name is called a parameter, here it is the collection name
-app.get('/collections/:collectionName', async function(req, res, next) {
+app.get('/collections/courses', async function(req, res, next) {
   try{
     //retrieving data from mongodb and storing it in an array
-    const results= await req.collection.find({}).toArray();
+    const courses= await req.collection.find({}).toArray();
 
     //load the result from thje array on console to check if it works (for debugging purposes)
     console.log('Retrieve data:', results);
 
     //respond back to front-end with the result
-    res.json(results);
+    res.json(courses);
   }
   catch(err){
     console.error('Error Fetching docs', err.message);
@@ -74,20 +98,6 @@ app.get('/collections/:collectionName', async function(req, res, next) {
     
 });
 
-app.get('/collections1/:collectionName', async function(req, res, next) {
-  try{
-    const results= await req.collection.find({},{limit:10, sort: {price:-1}}).toArray();
-
-    console.log('Retrieve data:', results);
-
-    res.json(results);
-  }
-  catch(err){
-    console.error('Error Fetching docs', err.message);
-    next(err);
-  }
- 
-});
 //sorting
 app.get('/collections/:collectionName/:max/:sortAspect/:sortAscDesc', async function(req, res, next){
   try{
@@ -126,7 +136,7 @@ app.get('/collections/:collectionName/:id' , async function(req, res, next) {
     
 });
 
-app.post('/collections/:collectionName', async function(req, res, next) {
+app.post('/collections/order', async function(req, res, next) {
   try{
 
     // log the request that body
@@ -163,7 +173,7 @@ app.delete('/collections/:collectionName/:id', async function(req, res, next) {
     
 });
 
-app.put('/collections/:collectionName/:id', async function(req, res, next) {
+app.put('/collections/order/:id', async function(req, res, next) {
   try{
 
     console.log('Received Request : ', req.params.id);
