@@ -197,6 +197,42 @@ app.put('/collections/courses/:id/add-to-cart', async (req, res) => {
   }
 });
 
+// Remove an item from the cart and increment the course quantity
+app.put('/collections/courses/:id/remove-from-cart', async (req, res) => {
+  try {
+      const courseId = req.params.id;
+      const coursesCollection = db1.collection('courses');
+
+      // Increment the Space of the course
+      const result = await coursesCollection.updateOne(
+          { _id: new ObjectId(courseId) },
+          { $inc: { Space: 1 } } // Increment Space by 1
+      );
+
+      if (result.matchedCount === 0) {
+          return res.status(400).json({ error: 'Course not found' });
+      }
+
+      // Optional: Decrement the item in the cart collection
+      const cartCollection = db1.collection('cart');
+      const cartResult = await cartCollection.updateOne(
+          { courseId: new ObjectId(courseId) },
+          { $inc: { quantity: -1 } }, // Decrement cart quantity
+          { upsert: false } // Do not insert if it doesn't exist
+      );
+
+      // Remove the item from the cart if the quantity reaches zero
+      if (cartResult.modifiedCount > 0) {
+          await cartCollection.deleteOne({ courseId: new ObjectId(courseId), quantity: { $lte: 0 } });
+      }
+
+      res.json({ message: 'Item removed from cart successfully' });
+  } catch (error) {
+      console.error('Error removing item from cart:', error);
+      res.status(500).json({ error: 'An error occurred while removing the item from the cart' });
+  }
+});
+
 app.use((err, req, res, next) => {
     console.error('Global error handler:', err);
     res.status(500).json({ error: 'An error occurred' });
