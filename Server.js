@@ -51,144 +51,121 @@ app.param('collectionName', async function(req, res, next, collectionName) {
     next();
 });
 
-// Serve the "Images" folder
+// Serve static files from the Images folder
 app.use("/images", express.static(path.join(__dirname, "Images")));
 
-app.get("/test-images", (req, res) => {
-  res.json({ message: "Static file serving configured" });
-});
+const imageMappings = {
+  "Mathematics": "maths.webp",
+  "Science": "science.webp",
+  "English": "english.webp",
+  "French": "french.webp",
+  "Design & Tech": "design.webp",
+  "Chemistry": "chemistry.webp",
+  "Music": "music.webp",
+  "Computer Science": "computer.webp",
+  "Kendo": "kendo.webp",
+  "Cooking": "cooking.webp",
+  "Volleyball": "volley.webp",
+};
 
-// Function to update lesson images
+// Serve the "Images" folder
 async function updateLessonImages() {
   try {
-    const lessonsCollection = db.collection("courses");
+    const lessonsCollection = db1.collection("courses"); // Use `db1` for MongoDB connection
     const lessons = await lessonsCollection.find({}).toArray();
-    for (let lesson of lessons) {
-      const updatedImage = `http://localhost:3000/courses/Images/${lesson.name}.jpeg`;
-      await lessonsCollection.updateOne(
-        { _id: lesson._id },
-        { $set: { image: updatedImage } }
-      );
+
+    for (const lesson of lessons) {
+      // Match the course name to its image file using the mapping
+      const imageFileName = imageMappings[lesson.name];
+      
+      if (imageFileName) {
+        const updatedImageURL = `http://localhost:${PORT}/images/${imageFileName}`;
+        // Update the image field in the database
+        await lessonsCollection.updateOne({_id: lesson._id},{ $set: {image: updatedImageURL}});
+      } else {
+        console.warn(`No image mapping found for course: ${lesson.name}`);
+      }
     }
+
     console.log("Lesson images updated successfully!");
   } catch (error) {
     console.error("Error updating images:", error);
   }
 }
 
+// Update images after connecting to the database
+connect_to_DB().then(() => updateLessonImages());
 
 // Ensure this route is defined after the middleware app.param
 // get all data from our collection in Mongodb
 // whatever had ":" before the name is called a parameter, here it is the collection name
-app.get('/collections/courses', async function(req, res, next) {
-  try{
+app.get('/collections/courses', async function (req, res, next) {
+  try {
     //retrieving data from mongodb and storing it in an array
-    const courses= await req.collection.find({}).toArray();
+    const courses = await db1.collection('courses').find({}).toArray();
 
     //load the result from thje array on console to check if it works (for debugging purposes)
-    console.log('Retrieve data:', results);
+    console.log('Fetched courses:', courses);
 
     //respond back to front-end with the result
     res.json(courses);
+  } catch (error) {
+    console.error('Error fetching courses:', error.message);
+    next(error);
   }
-  catch(err){
-    console.error('Error Fetching docs', err.message);
-    next(err);
-  }
-    
 });
 
-//sorting
-app.get('/collections/:collectionName/:max/:sortAspect/:sortAscDesc', async function(req, res, next){
-  try{
-    var max = parseInt(req.params.max, 10);
-    let sortDirection = 1;
-    if(req.params.sortAscDesc ==="desc"){
-      sortDirection = -1;
-    }
-
-    const results= await req.collection.find({},{limit:max, sort: {[req.params.sortAspect]: sortDirection}}).toArray();
-
-    console.log('Retrieve data:', results);
-
-    res.json(results);
+// Fetch a single document by ID
+app.get("/collections/:collectionName/:id", async (req, res, next) => {
+  try {
+    const result = await req.collection.findOne({ _id: new ObjectId(req.params.id) });
+    console.log("Fetched document:", result);
+    res.json(result);
+  } catch (error) {
+    console.error("Error fetching document:", error.message);
+    next(error);
   }
-  catch(err){
-    console.error('Error Fetching docs', err.message);
-    next(err);
-  }
-    
 });
 
-//searching by id
-app.get('/collections/:collectionName/:id' , async function(req, res, next) {
-  try{
-    const results= await req.collection.findOne({_id:new ObjectId(req.params.id) });
-
-    console.log('Retrieve data:', results);
-
-    res.json(results);
+// Insert a new document into a collection
+app.post("/collections/:collectionName", async (req, res, next) => {
+  try {
+    const result = await req.collection.insertOne(req.body);
+    console.log("Inserted document:", result);
+    res.json(result);
+  } catch (error) {
+    console.error("Error inserting document:", error.message);
+    next(error);
   }
-  catch(err){
-    console.error('Error Fetching docs', err.message);
-    next(err);
-  }
-    
 });
 
-app.post('/collections/order', async function(req, res, next) {
-  try{
-
-    // log the request that body
-    console.log('Received Request : ', req.body);
-
-    //in post we won't use .find, we will use .insert
-    const results= await req.collection.insertOne(req.body);
-
-    console.log('Inserted document:', results);
-
-    res.json(results);
+// Update an existing document by ID
+app.put("/collections/:collectionName/:id", async (req, res, next) => {
+  try {
+    const result = await req.collection.updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: req.body }
+    );
+    console.log("Updated document:", result);
+    res.json(result.matchedCount === 1 ? { msg: "Success" } : { msg: "Error" });
+  } catch (error) {
+    console.error("Error updating document:", error.message);
+    next(error);
   }
-  catch(err){
-    console.error('Error Fetching docs', err.message);
-    next(err);
-  }
-    
 });
 
-app.delete('/collections/:collectionName/:id', async function(req, res, next) {
-  try{
-
-    console.log('Received Request : ', req.params.id);
-    const results= await req.collection.deleteOne({_id:new ObjectId(req.params.id) });
-
-    console.log('Deleted data:', results);
-
-    res.json((results.deletedCount === 1) ? {msg: "Success"} : {msg: "error"});
+// Delete a document by ID
+app.delete("/collections/:collectionName/:id", async (req, res, next) => {
+  try {
+    const result = await req.collection.deleteOne({ _id: new ObjectId(req.params.id) });
+    console.log("Deleted document:", result);
+    res.json(result.deletedCount === 1 ? { msg: "Success" } : { msg: "Error" });
+  } catch (error) {
+    console.error("Error deleting document:", error.message);
+    next(error);
   }
-  catch(err){
-    console.error('Error Fetching docs', err.message);
-    next(err);
-  }
-    
 });
 
-app.put('/collections/order/:id', async function(req, res, next) {
-  try{
-
-    console.log('Received Request : ', req.params.id);
-    const results= await req.collection.updateOne({_id:new ObjectId(req.params.id) }, {$set:req.body} );
-
-    console.log('Updated data:', results);
-
-    res.json((results.matchedCount === 1) ? {msg: "Success"} : {msg: "error"});
-  }
-  catch(err){
-    console.error('Error Fetching docs', err.message);
-    next(err);
-  }
-
-});
 
 app.use((err, req, res, next) => {
     console.error('Global error handler:', err);
